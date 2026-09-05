@@ -30,7 +30,8 @@ router.post('/', async (req, res) => {
       : await generatePptxStructure(instruction, context);
 
     fs.mkdirSync(GENERATED_DIR, { recursive: true });
-    const fileName = `${Date.now()}.${format}`;
+    const baseName = buildFileNameBase(structured.title || instruction);
+    const fileName = `${baseName}_${Date.now()}.${format}`;
     const filePath = path.join(GENERATED_DIR, fileName);
 
     if (format === 'xlsx') {
@@ -39,11 +40,22 @@ router.post('/', async (req, res) => {
       await buildPptxFile(structured, filePath);
     }
 
-    res.json({ downloadUrl: `/generated/${fileName}`, fileName });
+    res.json({ downloadUrl: `/generated/${encodeURIComponent(fileName)}`, fileName });
   } catch (err) {
     res.status(500).json({ error: `生成に失敗しました: ${err.message}` });
   }
 });
+
+// ファイル名に使えない文字を除去し、長さを整える
+function buildFileNameBase(text) {
+  const cleaned = String(text || '')
+    .replace(/[\\/:*?"<>|]/g, '') // Windows/Excelで使えない記号を除去
+    .replace(/[\r\n\t]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, '_')
+    .slice(0, 30);
+  return cleaned || '資料';
+}
 
 async function generateExcelStructure(instruction, context) {
   const system = `あなたは資料の内容をもとにExcel形式のデータ構造を作成するアシスタントです。
@@ -63,6 +75,7 @@ async function generateExcelStructure(instruction, context) {
 
 出力形式:
 {
+  "title": "この資料全体を表す10〜20文字程度の短い題名(ファイル名に使うため記号は避ける)",
   "sheets": [
     {
       "name": "シート名",
@@ -95,6 +108,7 @@ async function generatePptxStructure(instruction, context) {
 
 出力形式:
 {
+  "title": "この資料全体を表す10〜20文字程度の短い題名(ファイル名に使うため記号は避ける)",
   "slides": [
     { "title": "スライドタイトル", "bullets": ["要点1", "要点2", "要点3"] }
   ]
