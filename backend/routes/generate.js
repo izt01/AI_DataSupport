@@ -88,16 +88,19 @@ ${context}
 }
 
 async function callClaudeForJson(system, instruction) {
-  // "{" から書き始めさせることで、会話文ではなくJSONとして応答することを強制する
-  const text = await callClaude({
-    system,
-    message: instruction,
-    maxTokens: 2048,
-    assistantPrefill: '{',
-  });
+  const text = await callClaude({ system, message: instruction, maxTokens: 2048 });
+
+  // コードブロック記号を除去したうえで、念のため最初の "{" 〜 最後の "}" だけを抜き出す
+  // (AIが前後に説明文を付けてしまった場合でも、JSON部分だけを回収できるようにする)
   const cleaned = text.replace(/```json|```/g, '').trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  const jsonSlice = (start !== -1 && end !== -1 && end > start)
+    ? cleaned.slice(start, end + 1)
+    : cleaned;
+
   try {
-    return JSON.parse(cleaned);
+    return JSON.parse(jsonSlice);
   } catch {
     throw new Error('AIの出力をJSONとして解釈できませんでした。指示文を変えて再試行してください');
   }

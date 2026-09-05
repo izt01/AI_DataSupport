@@ -843,18 +843,6 @@
     bubble.appendChild(document.createTextNode(text));
     msg.appendChild(bubble);
 
-    if(sources && sources.length > 0){
-      const src = document.createElement('div');
-      src.className = 'sources';
-      sources.forEach(s => {
-        const tag = document.createElement('span');
-        tag.className = 'source-tag';
-        tag.textContent = s;
-        src.appendChild(tag);
-      });
-      msg.appendChild(src);
-    }
-
     chatLog.appendChild(msg);
     chatLog.scrollTop = chatLog.scrollHeight;
     return msg;
