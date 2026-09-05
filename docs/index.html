@@ -202,6 +202,19 @@
     border-color: rgba(255,255,255,0.3);
     color: #fff;
   }
+  .doc-item .delete-btn{
+    font-size: 13px;
+    color: #6E7280;
+    background: none;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 2px 4px;
+    line-height:1;
+  }
+  .doc-item .delete-btn:hover{ color: #E27373; }
+  .doc-item.active .delete-btn{ color: rgba(255,255,255,0.6); }
+  .doc-item.active .delete-btn:hover{ color: #fff; }
   .summary-badge{
     display:inline-block;
     font-size: 11px;
@@ -291,14 +304,16 @@
     .msg{ max-width: 100%; }
   }
 
-  .main-header .hamburger-btn{ order: -1; }
-    padding: 18px 32px;
+  .main-header{
+    padding: 24px 32px;
     border-bottom: 1px solid var(--line);
     background: var(--paper-raised);
     display:flex;
     align-items:center;
     justify-content:space-between;
+    gap: 16px;
   }
+  .main-header .hamburger-btn{ order: -1; }
   .main-header .scope{
     font-size: 13px;
     color: var(--text-muted);
@@ -635,6 +650,20 @@
   let documents = [];   // { id, filename, ext }
   let selectedDocId = null; // null = 全資料
 
+  // ---------- ページ読み込み時にDBから資料一覧を取得 ----------
+  async function loadDocuments(){
+    try{
+      const res = await fetch(`${API_BASE}/api/documents`);
+      if(!res.ok) throw new Error(`一覧の取得に失敗しました (${res.status})`);
+      const data = await res.json();
+      documents = data.documents.map(d => ({ id: d.id, filename: d.filename, ext: d.file_type }));
+      renderDocList();
+    }catch(err){
+      console.error('資料一覧の取得に失敗:', err.message);
+    }
+  }
+  loadDocuments();
+
   // ---------- モバイル用サイドバー開閉 ----------
   const sidebar = document.getElementById('sidebar');
   const sidebarBackdrop = document.getElementById('sidebarBackdrop');
@@ -741,12 +770,26 @@
         <span class="ext">${doc.ext}</span>
         <span class="name">${escapeHtml(doc.filename)}</span>
         <button class="summarize-btn" type="button">要約</button>
+        <button class="delete-btn" type="button" title="削除">×</button>
       `;
       item.querySelector('.name').addEventListener('click', () => selectDoc(doc.id, doc.filename));
       item.querySelector('.ext').addEventListener('click', () => selectDoc(doc.id, doc.filename));
       item.querySelector('.summarize-btn').addEventListener('click', (e) => {
         e.stopPropagation();
         requestSummary(doc.id, doc.filename);
+      });
+      item.querySelector('.delete-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if(!confirm(`「${doc.filename}」を削除しますか?`)) return;
+        try{
+          const res = await fetch(`${API_BASE}/api/documents/${doc.id}`, { method: 'DELETE' });
+          if(!res.ok) throw new Error(`削除に失敗しました (${res.status})`);
+          documents = documents.filter(d => d.id !== doc.id);
+          if(selectedDocId === doc.id) selectDoc(null, '全資料');
+          renderDocList();
+        }catch(err){
+          alert(err.message);
+        }
       });
       docList.appendChild(item);
     });

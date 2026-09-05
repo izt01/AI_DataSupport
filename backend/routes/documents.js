@@ -1,14 +1,42 @@
 const express = require('express');
 const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
 const pool = require('../db');
 const { extractSegments } = require('../lib/extract');
 const { splitIntoChunks, embedText } = require('../lib/embed');
 const { callClaude } = require('../lib/claude');
 
 const router = express.Router();
-const upload = multer({ dest: 'uploads/' });
+
+// Railway等の実行環境差異を避けるため絶対パスで指定し、なければ自動作成する
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const upload = multer({ dest: UPLOAD_DIR });
 
 const MAX_SINGLE_PASS = 12000; // この文字数以下ならAI呼び出し1回で要約
+
+// ---------- 資料一覧取得(ページ読み込み時に使用) ----------
+router.get('/', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, filename, file_type FROM documents ORDER BY uploaded_at DESC`
+    );
+    res.json({ documents: rows });
+  } catch (err) {
+    res.status(500).json({ error: `資料一覧の取得に失敗しました: ${err.message}` });
+  }
+});
+
+// ---------- 資料削除 ----------
+router.delete('/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM documents WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: `削除に失敗しました: ${err.message}` });
+  }
+});
 
 // ---------- アップロード + テキスト抽出 + チャンク化 + 埋め込み保存 ----------
 router.post('/', upload.single('file'), async (req, res) => {
@@ -16,7 +44,12 @@ router.post('/', upload.single('file'), async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'ファイルが送信されていません' });
     }
-    const ext = req.file.originalname.split('.').pop().toLowerCase();
+
+    // multerはmultipartのファイル名をlatin1として解釈するため、
+    // 日本語などのマルチバイト文字が文字化けする。utf8に変換し直す
+    const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+
+    const ext = originalName.split('.').pop().toLowerCase();
     if (!['xlsx', 'pptx'].includes(ext)) {
       return res.status(400).json({ error: '対応形式は .xlsx / .pptx のみです' });
     }
@@ -26,7 +59,7 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     const { rows } = await pool.query(
       `INSERT INTO documents (filename, file_type, raw_text) VALUES ($1, $2, $3) RETURNING id`,
-      [req.file.originalname, ext, rawText]
+      [originalName, ext, rawText]
     );
     const documentId = rows[0].id;
 
