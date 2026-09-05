@@ -30,7 +30,7 @@ router.post('/', async (req, res) => {
 ${context}
 ---`,
       message: question,
-      maxTokens: 1024,
+      maxTokens: 4096,
     });
 
     res.json({ answer, sources: rows.map(r => r.source_label) });

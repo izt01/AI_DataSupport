@@ -20,7 +20,7 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    const rows = await retrieveContext(documentId, instruction, 8);
+    const rows = await retrieveContext(documentId, instruction, 12);
     const context = rows
       .map(r => `[${r.source_label}]\n${r.content}`)
       .join('\n\n---\n\n');
@@ -48,7 +48,9 @@ router.post('/', async (req, res) => {
 async function generateExcelStructure(instruction, context) {
   const system = `あなたは資料の内容をもとにExcel形式のデータ構造を作成するアシスタントです。
 以下のコンテキストをもとに、ユーザーの指示に沿った表データをJSON形式のみで出力してください。
-前置き・説明文・コードブロック記号は一切含めず、JSONオブジェクトのみを返してください。
+前置き・説明文・コードブロック記号は一切含めず、JSONオブジェクトのみを返してください。会話文で応答することは禁止します。
+
+コンテキストの内容が指示と直接関係しない場合でも、JSON以外の形式で応答してはいけません。その場合は、シートの1行目に「コンテキスト内に直接関連する記載が見つかりませんでした」といった説明を入れた上で、コンテキストから分かる範囲の関連情報を表にまとめてください。
 
 出力形式:
 {
@@ -67,7 +69,9 @@ ${context}
 async function generatePptxStructure(instruction, context) {
   const system = `あなたは資料の内容をもとにPowerPointスライドの構成を作成するアシスタントです。
 以下のコンテキストをもとに、ユーザーの指示に沿ったスライド構成をJSON形式のみで出力してください。
-前置き・説明文・コードブロック記号は一切含めず、JSONオブジェクトのみを返してください。
+前置き・説明文・コードブロック記号は一切含めず、JSONオブジェクトのみを返してください。会話文で応答することは禁止します。
+
+コンテキストの内容が指示と直接関係しない場合でも、JSON以外の形式で応答してはいけません。その場合は、1枚目のスライドの見出しを「関連する記載が見つかりませんでした」とし、bulletsにコンテキストから分かる範囲の関連情報を入れてください。
 
 出力形式:
 {
@@ -84,7 +88,13 @@ ${context}
 }
 
 async function callClaudeForJson(system, instruction) {
-  const text = await callClaude({ system, message: instruction, maxTokens: 2048 });
+  // "{" から書き始めさせることで、会話文ではなくJSONとして応答することを強制する
+  const text = await callClaude({
+    system,
+    message: instruction,
+    maxTokens: 2048,
+    assistantPrefill: '{',
+  });
   const cleaned = text.replace(/```json|```/g, '').trim();
   try {
     return JSON.parse(cleaned);

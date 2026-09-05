@@ -120,6 +120,7 @@ async function summarizeText(text, filename) {
     return await callClaude({
       system: `資料「${filename}」の内容を要約してください。要点を箇条書きにし、重要な数値・固有名詞は残してください。`,
       message: text,
+      maxTokens: 4096,
     });
   }
 
@@ -141,6 +142,7 @@ async function summarizeText(text, filename) {
   return await callClaude({
     system: `以下は資料「${filename}」を分割して作成した中間要約です。これらをもとに、資料全体の要約を作成してください。重複している内容は整理し、要点を箇条書きでまとめてください。`,
     message: combined,
+    maxTokens: 4096,
   });
 }
 

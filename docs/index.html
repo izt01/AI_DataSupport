@@ -738,15 +738,11 @@
       if(!res.ok) throw new Error(`アップロードに失敗しました (${res.status})`);
       const data = await res.json();
 
-      barFillEl.style.width = '100%';
-      statusEl.textContent = '登録完了';
-      item.classList.add('done');
-
       const ext = file.name.split('.').pop().toLowerCase();
       documents.push({ id: data.documentId, filename: file.name, ext });
       renderDocList();
 
-      setTimeout(() => item.remove(), 2000);
+      item.remove();
     }catch(err){
       statusEl.textContent = 'エラー';
       barFillEl.style.width = '100%';
