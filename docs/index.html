@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>資料チャットAI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #1E2128;
+    --ink-2: #2A2E37;
+    --ink-3: #363B46;
+    --line-dark: #3D414C;
+    --paper: #F5F3EE;
+    --paper-raised: #FBFAF7;
+    --line: #DEDAD0;
+    --text-ink: #E8E5DC;
+    --text-ink-muted: #9B9DA6;
+    --text-main: #232620;
+    --text-muted: #6B6656;
+    --accent: #3F6E62;
+    --accent-dark: #2C5049;
+    --accent-warm: #B8793A;
+    --font-serif: "Source Serif 4", Georgia, serif;
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    font-family: var(--font-sans);
+    color: var(--text-main);
+    background: var(--paper);
+    display:flex;
+    overflow:hidden;
+  }
+  ::selection{ background: var(--accent); color:#fff; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width: 300px;
+    min-width: 300px;
+    background: var(--ink);
+    color: var(--text-ink);
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+  }
+  .brand{
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--line-dark);
+  }
+  .brand h1{
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 21px;
+    margin:0 0 4px;
+    letter-spacing: 0.2px;
+  }
+  .brand p{
+    margin:0;
+    font-size: 12.5px;
+    color: #8E93A0;
+    line-height:1.5;
+  }
+
+  .upload-zone{
+    margin: 20px 20px 0;
+    border: 1px dashed var(--line-dark);
+    border-radius: 6px;
+    padding: 22px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .upload-zone:hover, .upload-zone.dragover{
+    border-color: var(--accent);
+    background: rgba(63,110,98,0.12);
+  }
+  .upload-zone .icon{
+    font-size: 20px;
+    margin-bottom: 6px;
+    color: #8E93A0;
+  }
+  .upload-zone .main-text{
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-ink);
+  }
+  .upload-zone .sub-text{
+    font-size: 11.5px;
+    color: #767B87;
+    margin-top: 3px;
+  }
+  .upload-zone input{ display:none; }
+
+  .upload-progress{
+    margin: 10px 20px 0;
+    font-size: 12px;
+    color: #B8BAC2;
+  }
+  .upload-progress .bar{
+    height:3px;
+    background: var(--ink-3);
+    border-radius: 2px;
+    margin-top:6px;
+    overflow:hidden;
+  }
+  .upload-progress .bar-fill{
+    height:100%;
+    width:0%;
+    background: var(--accent-warm);
+    transition: width .2s;
+  }
+
+  .doc-section{
+    flex:1;
+    overflow-y:auto;
+    padding: 20px;
+  }
+  .doc-section h2{
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: #6E7280;
+    letter-spacing: 0.06em;
+    margin: 0 0 10px;
+  }
+  .doc-item{
+    display:flex;
+    align-items:center;
+    gap: 9px;
+    padding: 9px 10px;
+    border-radius: 5px;
+    cursor:pointer;
+    font-size: 13px;
+    color: #C9CBD3;
+    margin-bottom: 2px;
+    transition: background .12s;
+  }
+  .doc-item:hover{ background: var(--ink-2); }
+  .doc-item.active{
+    background: var(--accent-dark);
+    color:#fff;
+  }
+  .doc-item .ext{
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: var(--ink-3);
+    color: #9CA0AC;
+    letter-spacing: 0.03em;
+  }
+  .doc-item.active .ext{
+    background: rgba(255,255,255,0.18);
+    color: #fff;
+  }
+  .doc-item .name{
+    overflow:hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex:1;
+  }
+  .doc-item .summarize-btn{
+    font-size: 11px;
+    color: #9CA0AC;
+    background: none;
+    border: 1px solid var(--line-dark);
+    border-radius: 4px;
+    padding: 3px 7px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .doc-item .summarize-btn:hover{
+    border-color: var(--accent-warm);
+    color: var(--accent-warm);
+  }
+  .doc-item.active .summarize-btn{
+    border-color: rgba(255,255,255,0.3);
+    color: #fff;
+  }
+  .summary-badge{
+    display:inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent-warm);
+    background: rgba(184,121,58,0.12);
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+  }
+  .doc-empty{
+    font-size: 12.5px;
+    color: #6E7280;
+    padding: 8px 10px;
+    line-height:1.6;
+  }
+
+  .all-docs-item{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    padding: 9px 10px;
+    border-radius: 5px;
+    cursor:pointer;
+    font-size: 13px;
+    color: #C9CBD3;
+    margin-bottom: 10px;
+    border: 1px solid var(--line-dark);
+  }
+  .all-docs-item.active{
+    background: var(--accent-dark);
+    border-color: var(--accent-dark);
+    color:#fff;
+  }
+
+  /* ---------- Main ---------- */
+  .main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+  }
+  .hamburger-btn{
+    display:none;
+    background:none;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    color: var(--text-main);
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .sidebar-backdrop{
+    display:none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 20;
+  }
+  .sidebar-backdrop.open{ display:block; }
+
+  @media (max-width: 860px){
+    body{ overflow: auto; }
+    .hamburger-btn{ display:block; }
+    .sidebar{
+      position: fixed;
+      left: 0; top:0;
+      z-index: 30;
+      transform: translateX(-100%);
+      transition: transform .2s ease;
+      box-shadow: 2px 0 16px rgba(0,0,0,0.25);
+    }
+    .sidebar.open{ transform: translateX(0); }
+    .main{ width: 100%; }
+    .main-header{ padding: 14px 16px; gap: 12px; }
+    .main-header .scope{ font-size:12px; flex:1; }
+    .main-header .header-actions{ gap:6px; }
+    .main-header .generate-btn, .main-header .clear-btn{
+      font-size: 11.5px;
+      padding: 6px 10px;
+    }
+    .chat-log{ padding: 18px 16px; }
+    .composer{ padding: 12px 16px 18px; }
+    .generate-panel{ padding: 14px 16px; }
+    .msg{ max-width: 100%; }
+  }
+
+  .main-header .hamburger-btn{ order: -1; }
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper-raised);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .main-header .scope{
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .main-header .scope strong{
+    color: var(--text-main);
+    font-weight: 600;
+  }
+  .main-header .header-actions{
+    display:flex;
+    gap: 10px;
+  }
+  .main-header .generate-btn{
+    font-size: 12.5px;
+    color: var(--accent-warm);
+    background: rgba(184,121,58,0.1);
+    border: 1px solid rgba(184,121,58,0.35);
+    padding: 6px 14px;
+    border-radius: 5px;
+    cursor:pointer;
+    font-weight: 500;
+  }
+  .main-header .generate-btn:hover{
+    background: rgba(184,121,58,0.18);
+  }
+  .main-header .clear-btn{
+    font-size: 12.5px;
+    color: var(--text-muted);
+    background:none;
+    border: 1px solid var(--line);
+    padding: 6px 12px;
+    border-radius: 5px;
+    cursor:pointer;
+  }
+  .main-header .clear-btn:hover{
+    border-color: var(--accent-warm);
+    color: var(--accent-warm);
+  }
+
+  .chat-log{
+    flex:1;
+    overflow-y:auto;
+    padding: 28px 32px;
+  }
+  .chat-empty{
+    max-width: 480px;
+    margin: 60px auto;
+    text-align:center;
+  }
+  .chat-empty .glyph{
+    font-family: var(--font-serif);
+    font-size: 40px;
+    color: var(--line);
+    margin-bottom: 14px;
+  }
+  .chat-empty h3{
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 18px;
+    margin: 0 0 8px;
+  }
+  .chat-empty p{
+    font-size: 13.5px;
+    color: var(--text-muted);
+    line-height:1.7;
+    margin:0;
+  }
+
+  .msg{
+    max-width: 640px;
+    margin: 0 0 22px;
+  }
+  .msg.user{
+    margin-left:auto;
+  }
+  .msg .bubble{
+    padding: 13px 16px;
+    border-radius: 8px;
+    font-size: 14.5px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+  .msg.user .bubble{
+    background: var(--accent);
+    color: #fff;
+    border-bottom-right-radius: 2px;
+  }
+  .msg.assistant .bubble{
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-bottom-left-radius: 2px;
+  }
+  .msg.assistant .label, .msg.user .label{
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    font-weight: 500;
+  }
+  .msg.user .label{ text-align:right; }
+  .sources{
+    margin-top: 10px;
+    display:flex;
+    flex-wrap:wrap;
+    gap: 6px;
+  }
+  .source-tag{
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(184,121,58,0.12);
+    color: var(--accent-warm);
+    font-weight: 500;
+  }
+  .msg.loading .bubble{
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .generate-panel{
+    display:none;
+    padding: 16px 32px;
+    background: var(--paper-raised);
+    border-bottom: 1px solid var(--line);
+  }
+  .generate-panel.open{ display:block; }
+  .generate-panel-inner{
+    max-width: 760px;
+    margin: 0 auto;
+    display:flex;
+    flex-direction:column;
+    gap: 10px;
+  }
+  .generate-row{
+    display:flex;
+    gap: 10px;
+    align-items:center;
+  }
+  .format-toggle{
+    display:flex;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow:hidden;
+  }
+  .format-toggle button{
+    border:none;
+    background: var(--paper);
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 8px 16px;
+    cursor:pointer;
+    font-family: var(--font-sans);
+  }
+  .format-toggle button.active{
+    background: var(--accent);
+    color:#fff;
+  }
+  .generate-panel textarea{
+    width:100%;
+    resize: none;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    background: var(--paper);
+    color: var(--text-main);
+  }
+  .generate-panel textarea:focus{ outline:none; border-color: var(--accent); }
+  .generate-submit{
+    align-self: flex-end;
+    background: var(--accent);
+    color:#fff;
+    border:none;
+    border-radius: 6px;
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor:pointer;
+  }
+  .generate-submit:hover{ background: var(--accent-dark); }
+  .generate-submit:disabled{ background: var(--line); cursor:not-allowed; }
+  .download-link{
+    display:inline-block;
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+    text-decoration: none;
+    border: 1px solid var(--accent);
+    padding: 6px 14px;
+    border-radius: 6px;
+  }
+  .download-link:hover{ background: var(--accent); color:#fff; }
+
+  .composer{
+    padding: 18px 32px 24px;
+    border-top: 1px solid var(--line);
+    background: var(--paper-raised);
+  }
+  .composer-inner{
+    display:flex;
+    align-items:flex-end;
+    gap: 10px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .composer textarea{
+    flex:1;
+    resize:none;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height:1.5;
+    max-height: 140px;
+    background: var(--paper);
+    color: var(--text-main);
+  }
+  .composer textarea:focus{
+    outline:none;
+    border-color: var(--accent);
+  }
+  .composer button{
+    background: var(--accent);
+    color:#fff;
+    border:none;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: var(--font-sans);
+    cursor:pointer;
+    transition: background .12s;
+  }
+  .composer button:hover{ background: var(--accent-dark); }
+  .composer button:disabled{
+    background: var(--line);
+    cursor: not-allowed;
+  }
+  .composer-hint{
+    max-width: 760px;
+    margin: 8px auto 0;
+    font-size: 11.5px;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <h1>資料チャットAI</h1>
+      <p>xlsx・pptx を読み込んで内容について質問できます</p>
+    </div>
+
+    <div class="upload-zone" id="uploadZone">
+      <div class="icon">＋</div>
+      <div class="main-text">資料をドロップ、またはクリックして選択</div>
+      <div class="sub-text">.xlsx / .pptx</div>
+      <input type="file" id="fileInput" accept=".xlsx,.pptx" multiple>
+    </div>
+    <div class="upload-progress" id="uploadProgress" style="display:none;">
+      <span id="uploadStatus">アップロード中...</span>
+      <div class="bar"><div class="bar-fill" id="uploadBarFill"></div></div>
+    </div>
+
+    <div class="doc-section">
+      <h2>資料一覧</h2>
+      <div class="all-docs-item active" id="allDocsItem" data-id="">
+        <span class="name">全資料を対象にする</span>
+      </div>
+      <div id="docList">
+        <div class="doc-empty" id="docEmpty">まだ資料がありません。上の欄からアップロードしてください。</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="main-header">
+      <button class="hamburger-btn" id="hamburgerBtn" aria-label="メニューを開く">☰</button>
+      <div class="scope">対象資料: <strong id="scopeLabel">全資料</strong></div>
+      <div class="header-actions">
+        <button class="generate-btn" id="generateToggleBtn">資料化(Excel/PPT)</button>
+        <button class="clear-btn" id="clearBtn">会話をクリア</button>
+      </div>
+    </div>
+
+    <div class="generate-panel" id="generatePanel">
+      <div class="generate-panel-inner">
+        <div class="generate-row">
+          <div class="format-toggle">
+            <button type="button" class="active" data-format="xlsx" id="formatXlsxBtn">Excel</button>
+            <button type="button" data-format="pptx" id="formatPptxBtn">PowerPoint</button>
+          </div>
+        </div>
+        <textarea id="generateInstruction" rows="2" placeholder="例: 各シートの売上合計を一覧表にまとめて / スライドの要点を3枚にまとめて"></textarea>
+        <button class="generate-submit" id="generateSubmitBtn">生成する</button>
+      </div>
+    </div>
+
+    <div class="chat-log" id="chatLog">
+      <div class="chat-empty" id="chatEmpty">
+        <div class="glyph">?</div>
+        <h3>資料について質問してみましょう</h3>
+        <p>「A社の売上推移は?」「企画書の3枚目の要点は?」のように、資料の内容について自然な言葉で聞けます。</p>
+      </div>
+    </div>
+
+    <div class="composer">
+      <div class="composer-inner">
+        <textarea id="questionInput" rows="1" placeholder="資料について質問を入力..."></textarea>
+        <button id="sendBtn">送信</button>
+      </div>
+      <div class="composer-hint">Enterで送信 / Shift+Enterで改行</div>
+    </div>
+  </main>
+
+<script>
+  const API_BASE = 'https://aidatasupport-production.up.railway.app'; // RailwayにデプロイしたバックエンドのURLを設定(同一オリジンなら空文字のままでOK)
+
+  const uploadZone = document.getElementById('uploadZone');
+  const fileInput = document.getElementById('fileInput');
+  const uploadProgress = document.getElementById('uploadProgress');
+  const uploadStatus = document.getElementById('uploadStatus');
+  const uploadBarFill = document.getElementById('uploadBarFill');
+  const docList = document.getElementById('docList');
+  const docEmpty = document.getElementById('docEmpty');
+  const allDocsItem = document.getElementById('allDocsItem');
+  const scopeLabel = document.getElementById('scopeLabel');
+  const chatLog = document.getElementById('chatLog');
+  const chatEmpty = document.getElementById('chatEmpty');
+  const questionInput = document.getElementById('questionInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const clearBtn = document.getElementById('clearBtn');
+
+  let documents = [];   // { id, filename, ext }
+  let selectedDocId = null; // null = 全資料
+
+  // ---------- モバイル用サイドバー開閉 ----------
+  const sidebar = document.getElementById('sidebar');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  const hamburgerBtn = document.getElementById('hamburgerBtn');
+
+  hamburgerBtn.addEventListener('click', () => {
+    sidebar.classList.add('open');
+    sidebarBackdrop.classList.add('open');
+  });
+  sidebarBackdrop.addEventListener('click', closeSidebar);
+  function closeSidebar(){
+    sidebar.classList.remove('open');
+    sidebarBackdrop.classList.remove('open');
+  }
+
+  // ---------- アップロード ----------
+  uploadZone.addEventListener('click', () => fileInput.click());
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', () => {
+    handleFiles(fileInput.files);
+    fileInput.value = '';
+  });
+
+  function handleFiles(fileList){
+    const files = Array.from(fileList).filter(f => /\.(xlsx|pptx)$/i.test(f.name));
+    if(files.length === 0){
+      alert('対応形式は .xlsx と .pptx のみです');
+      return;
+    }
+    files.forEach(uploadFile);
+  }
+
+  async function uploadFile(file){
+    uploadProgress.style.display = 'block';
+    uploadStatus.textContent = `${file.name} をアップロード中...`;
+    uploadBarFill.style.width = '15%';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try{
+      uploadBarFill.style.width = '55%';
+      const res = await fetch(`${API_BASE}/api/documents`, { method: 'POST', body: formData });
+      if(!res.ok) throw new Error(`アップロードに失敗しました (${res.status})`);
+      const data = await res.json();
+      uploadBarFill.style.width = '100%';
+      uploadStatus.textContent = `${file.name} を登録しました`;
+
+      const ext = file.name.split('.').pop().toLowerCase();
+      documents.push({ id: data.documentId, filename: file.name, ext });
+      renderDocList();
+
+      setTimeout(() => { uploadProgress.style.display = 'none'; uploadBarFill.style.width = '0%'; }, 1200);
+    }catch(err){
+      uploadStatus.textContent = `エラー: ${err.message}`;
+      uploadBarFill.style.width = '0%';
+      setTimeout(() => { uploadProgress.style.display = 'none'; }, 2500);
+    }
+  }
+
+  // ---------- 資料一覧 ----------
+  function renderDocList(){
+    docList.innerHTML = '';
+    if(documents.length === 0){
+      docList.appendChild(docEmpty);
+      return;
+    }
+    documents.forEach(doc => {
+      const item = document.createElement('div');
+      item.className = 'doc-item' + (selectedDocId === doc.id ? ' active' : '');
+      item.dataset.id = doc.id;
+      item.innerHTML = `
+        <span class="ext">${doc.ext}</span>
+        <span class="name">${escapeHtml(doc.filename)}</span>
+        <button class="summarize-btn" type="button">要約</button>
+      `;
+      item.querySelector('.name').addEventListener('click', () => selectDoc(doc.id, doc.filename));
+      item.querySelector('.ext').addEventListener('click', () => selectDoc(doc.id, doc.filename));
+      item.querySelector('.summarize-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        requestSummary(doc.id, doc.filename);
+      });
+      docList.appendChild(item);
+    });
+  }
+
+  allDocsItem.addEventListener('click', () => selectDoc(null, '全資料'));
+
+  function selectDoc(id, label){
+    selectedDocId = id;
+    scopeLabel.textContent = label;
+    allDocsItem.classList.toggle('active', id === null);
+    renderDocList();
+    closeSidebar();
+  }
+
+  // ---------- チャット ----------
+  function autoResize(){
+    questionInput.style.height = 'auto';
+    questionInput.style.height = Math.min(questionInput.scrollHeight, 140) + 'px';
+  }
+  questionInput.addEventListener('input', autoResize);
+  questionInput.addEventListener('keydown', e => {
+    if(e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      sendQuestion();
+    }
+  });
+  sendBtn.addEventListener('click', sendQuestion);
+
+  clearBtn.addEventListener('click', () => {
+    chatLog.innerHTML = '';
+    chatLog.appendChild(chatEmpty);
+  });
+
+  function appendMessage(role, text, sources, badge){
+    if(chatEmpty.parentNode) chatEmpty.remove();
+
+    const msg = document.createElement('div');
+    msg.className = `msg ${role}`;
+
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.textContent = role === 'user' ? 'あなた' : 'AI';
+    msg.appendChild(label);
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    if(badge){
+      const badgeEl = document.createElement('span');
+      badgeEl.className = 'summary-badge';
+      badgeEl.textContent = badge;
+      bubble.appendChild(badgeEl);
+      bubble.appendChild(document.createElement('br'));
+    }
+    bubble.appendChild(document.createTextNode(text));
+    msg.appendChild(bubble);
+
+    if(sources && sources.length > 0){
+      const src = document.createElement('div');
+      src.className = 'sources';
+      sources.forEach(s => {
+        const tag = document.createElement('span');
+        tag.className = 'source-tag';
+        tag.textContent = s;
+        src.appendChild(tag);
+      });
+      msg.appendChild(src);
+    }
+
+    chatLog.appendChild(msg);
+    chatLog.scrollTop = chatLog.scrollHeight;
+    return msg;
+  }
+
+  async function sendQuestion(){
+    const question = questionInput.value.trim();
+    if(!question) return;
+
+    appendMessage('user', question);
+    questionInput.value = '';
+    autoResize();
+
+    const loadingMsg = appendMessage('assistant', '資料を検索して回答を作成しています...');
+    loadingMsg.classList.add('loading');
+    sendBtn.disabled = true;
+
+    try{
+      const res = await fetch(`${API_BASE}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: selectedDocId, question }),
+      });
+      if(!res.ok) throw new Error(`回答の取得に失敗しました (${res.status})`);
+      const data = await res.json();
+      loadingMsg.remove();
+      appendMessage('assistant', data.answer, data.sources);
+    }catch(err){
+      loadingMsg.remove();
+      appendMessage('assistant', `エラーが発生しました: ${err.message}`);
+    }finally{
+      sendBtn.disabled = false;
+    }
+  }
+
+  // ---------- 資料化(Excel/PowerPoint生成) ----------
+  const generateToggleBtn = document.getElementById('generateToggleBtn');
+  const generatePanel = document.getElementById('generatePanel');
+  const formatXlsxBtn = document.getElementById('formatXlsxBtn');
+  const formatPptxBtn = document.getElementById('formatPptxBtn');
+  const generateInstruction = document.getElementById('generateInstruction');
+  const generateSubmitBtn = document.getElementById('generateSubmitBtn');
+  let selectedFormat = 'xlsx';
+
+  generateToggleBtn.addEventListener('click', () => {
+    generatePanel.classList.toggle('open');
+    if(generatePanel.classList.contains('open')) generateInstruction.focus();
+  });
+
+  formatXlsxBtn.addEventListener('click', () => setFormat('xlsx'));
+  formatPptxBtn.addEventListener('click', () => setFormat('pptx'));
+  function setFormat(format){
+    selectedFormat = format;
+    formatXlsxBtn.classList.toggle('active', format === 'xlsx');
+    formatPptxBtn.classList.toggle('active', format === 'pptx');
+  }
+
+  generateSubmitBtn.addEventListener('click', async () => {
+    const instruction = generateInstruction.value.trim();
+    if(!instruction){
+      alert('生成したい内容を入力してください');
+      return;
+    }
+
+    generateSubmitBtn.disabled = true;
+    const formatLabel = selectedFormat === 'xlsx' ? 'Excel' : 'PowerPoint';
+    const loadingMsg = appendMessage('assistant', `${formatLabel}形式で資料を生成しています...`);
+    loadingMsg.classList.add('loading');
+
+    try{
+      const res = await fetch(`${API_BASE}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId: selectedDocId,
+          format: selectedFormat,
+          instruction,
+        }),
+      });
+      if(!res.ok){
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `生成に失敗しました (${res.status})`);
+      }
+      const data = await res.json();
+      loadingMsg.remove();
+
+      const resultMsg = appendMessage('assistant', `「${instruction}」の内容で${formatLabel}ファイルを作成しました。`, null, `生成: ${data.fileName}`);
+      const link = document.createElement('a');
+      link.className = 'download-link';
+      link.href = `${API_BASE}${data.downloadUrl}`;
+      link.textContent = `${data.fileName} をダウンロード`;
+      link.download = data.fileName;
+      resultMsg.querySelector('.bubble').appendChild(document.createElement('br'));
+      resultMsg.querySelector('.bubble').appendChild(link);
+
+      generateInstruction.value = '';
+      generatePanel.classList.remove('open');
+    }catch(err){
+      loadingMsg.remove();
+      appendMessage('assistant', `エラーが発生しました: ${err.message}`);
+    }finally{
+      generateSubmitBtn.disabled = false;
+    }
+  });
+
+  async function requestSummary(docId, filename){
+    selectDoc(docId, filename);
+
+    const loadingMsg = appendMessage('assistant', `「${filename}」を要約しています...`);
+    loadingMsg.classList.add('loading');
+
+    try{
+      const res = await fetch(`${API_BASE}/api/documents/${docId}/summary`, {
+        method: 'POST',
+      });
+      if(!res.ok){
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `要約の取得に失敗しました (${res.status})`);
+      }
+      const data = await res.json();
+      loadingMsg.remove();
+      appendMessage('assistant', data.summary, null, `要約: ${filename}`);
+    }catch(err){
+      loadingMsg.remove();
+      appendMessage('assistant', `エラーが発生しました: ${err.message}`);
+    }
+  }
+
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+</script>
+
+</body>
+</html>
