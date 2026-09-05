@@ -1,9 +1,17 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- プロジェクト(例: 「システムA」「システムB」)ごとに資料・会話を分離するための単位
+CREATE TABLE projects (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT now()
+);
+
 CREATE TABLE documents (
   id SERIAL PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   filename TEXT NOT NULL,
-  file_type TEXT NOT NULL,        -- 'xlsx' / 'pptx'
+  file_type TEXT NOT NULL,        -- 'xlsx' / 'pptx' / 'js' / 'py' / 'html' など
   raw_text TEXT,                  -- 抽出した全文(要約用にそのまま保持)
   uploaded_at TIMESTAMP DEFAULT now()
 );
@@ -13,8 +21,10 @@ CREATE TABLE chunks (
   document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
   chunk_index INTEGER NOT NULL,
   content TEXT NOT NULL,
-  source_label TEXT,              -- 例: "シート:集計" "スライド3"
+  source_label TEXT,              -- 例: "シート:集計" "スライド3" "ファイル:app.py (L1-60)"
   embedding VECTOR(1536)          -- OpenAI text-embedding-3-small の次元数
 );
 
+CREATE INDEX ON documents (project_id);
 CREATE INDEX ON chunks USING ivfflat (embedding vector_cosine_ops);
+CREATE INDEX ON chunks (document_id);

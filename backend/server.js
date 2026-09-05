@@ -6,6 +6,7 @@ const path = require('path');
 const documentsRouter = require('./routes/documents');
 const chatRouter = require('./routes/chat');
 const generateRouter = require('./routes/generate');
+const projectsRouter = require('./routes/projects');
 
 const app = express();
 
@@ -17,6 +18,7 @@ app.use(express.json());
 // 生成したExcel/PowerPointファイルをダウンロードできるよう静的配信
 app.use('/generated', express.static(path.join(__dirname, 'generated')));
 
+app.use('/api/projects', projectsRouter);
 app.use('/api/documents', documentsRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/generate', generateRouter);

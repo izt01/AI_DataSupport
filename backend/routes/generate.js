@@ -10,8 +10,11 @@ const router = express.Router();
 const GENERATED_DIR = path.join(__dirname, '..', 'generated');
 
 router.post('/', async (req, res) => {
-  const { documentId, format, instruction } = req.body;
+  const { projectId, documentId, format, instruction } = req.body;
 
+  if (!projectId) {
+    return res.status(400).json({ error: 'projectIdを指定してください' });
+  }
   if (!['xlsx', 'pptx'].includes(format)) {
     return res.status(400).json({ error: '出力形式は xlsx または pptx を指定してください' });
   }
@@ -20,7 +23,7 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    const rows = await retrieveContext(documentId, instruction, 24);
+    const rows = await retrieveContext(projectId, documentId, instruction, 24);
     const context = rows
       .map(r => `[${r.source_label}]\n${r.content}`)
       .join('\n\n---\n\n');

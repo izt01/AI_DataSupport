@@ -3,7 +3,7 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const pool = require('../db');
-const { extractSegments } = require('../lib/extract');
+const { extractSegments, isSupportedExtension, isCodeExtension } = require('../lib/extract');
 const { splitIntoChunks, embedText } = require('../lib/embed');
 const { callClaude } = require('../lib/claude');
 
@@ -16,11 +16,16 @@ const upload = multer({ dest: UPLOAD_DIR });
 
 const MAX_SINGLE_PASS = 12000; // この文字数以下ならAI呼び出し1回で要約
 
-// ---------- 資料一覧取得(ページ読み込み時に使用) ----------
+// ---------- 資料一覧取得(プロジェクトごと。ページ読み込み時に使用) ----------
 router.get('/', async (req, res) => {
+  const { projectId } = req.query;
+  if (!projectId) {
+    return res.status(400).json({ error: 'projectIdを指定してください' });
+  }
   try {
     const { rows } = await pool.query(
-      `SELECT id, filename, file_type FROM documents ORDER BY uploaded_at DESC`
+      `SELECT id, filename, file_type FROM documents WHERE project_id = $1 ORDER BY uploaded_at DESC`,
+      [projectId]
     );
     res.json({ documents: rows });
   } catch (err) {
@@ -44,26 +49,32 @@ router.post('/', upload.single('file'), async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'ファイルが送信されていません' });
     }
+    const { projectId } = req.body;
+    if (!projectId) {
+      return res.status(400).json({ error: 'projectIdを指定してください(プロジェクトを選択してください)' });
+    }
 
     // multerはmultipartのファイル名をlatin1として解釈するため、
     // 日本語などのマルチバイト文字が文字化けする。utf8に変換し直す
     const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
 
     const ext = originalName.split('.').pop().toLowerCase();
-    if (!['xlsx', 'pptx'].includes(ext)) {
-      return res.status(400).json({ error: '対応形式は .xlsx / .pptx のみです' });
+    if (!isSupportedExtension(ext)) {
+      return res.status(400).json({ error: `対応していない形式です(.${ext})` });
     }
 
-    const segments = await extractSegments(req.file.path, ext);
+    const segments = await extractSegments(req.file.path, ext, originalName);
     const rawText = segments.map(s => `[${s.label}]\n${s.text}`).join('\n\n');
 
     const { rows } = await pool.query(
-      `INSERT INTO documents (filename, file_type, raw_text) VALUES ($1, $2, $3) RETURNING id`,
-      [originalName, ext, rawText]
+      `INSERT INTO documents (project_id, filename, file_type, raw_text) VALUES ($1, $2, $3, $4) RETURNING id`,
+      [projectId, originalName, ext, rawText]
     );
     const documentId = rows[0].id;
 
-    await chunkAndEmbed(documentId, segments);
+    // コードファイルは、既に行番号ベースで適度な大きさに分割済みのため、
+    // これ以上の文字数ベースの再分割はせず、コードのまとまりを保ったまま埋め込む
+    await chunkAndEmbed(documentId, segments, { resplit: !isCodeExtension(ext) });
 
     res.json({ documentId });
   } catch (err) {
@@ -71,10 +82,10 @@ router.post('/', upload.single('file'), async (req, res) => {
   }
 });
 
-async function chunkAndEmbed(documentId, segments) {
+async function chunkAndEmbed(documentId, segments, { resplit }) {
   let globalIndex = 0;
   for (const segment of segments) {
-    const subChunks = splitIntoChunks(segment.text);
+    const subChunks = resplit ? splitIntoChunks(segment.text) : [segment.text];
     for (let i = 0; i < subChunks.length; i++) {
       const label = subChunks.length > 1
         ? `${segment.label}(${i + 1}/${subChunks.length})`
@@ -118,7 +129,7 @@ router.post('/:id/summary', async (req, res) => {
 async function summarizeText(text, filename) {
   if (text.length <= MAX_SINGLE_PASS) {
     return await callClaude({
-      system: `資料「${filename}」の内容を要約してください。要点を箇条書きにし、重要な数値・固有名詞は残してください。`,
+      system: `資料「${filename}」の内容を要約してください。要点を箇条書きにし、重要な数値・固有名詞は残してください。プログラムコードの場合は、主な処理内容・関数やクラスの役割を要約してください。`,
       message: text,
       maxTokens: 4096,
     });

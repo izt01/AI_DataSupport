@@ -93,6 +93,14 @@
     margin-top: 3px;
   }
   .upload-zone input{ display:none; }
+  .upload-zone.disabled{
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  .upload-zone.disabled:hover{
+    border-color: var(--line-dark);
+    background: none;
+  }
 
   .upload-list{
     margin: 10px 20px 0;
@@ -134,6 +142,78 @@
     transition: width .2s;
   }
   .upload-item.error .bar-fill{ background: #E27373; }
+
+  .project-section{
+    padding: 20px 20px 4px;
+    border-bottom: 1px solid var(--line-dark);
+  }
+  .project-section h2{
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: #6E7280;
+    letter-spacing: 0.06em;
+    margin: 0 0 10px;
+  }
+  .project-item{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 5px;
+    cursor:pointer;
+    font-size: 13.5px;
+    color: #C9CBD3;
+    margin-bottom: 2px;
+    transition: background .12s;
+  }
+  .project-item:hover{ background: var(--ink-2); }
+  .project-item.active{
+    background: var(--accent-dark);
+    color:#fff;
+    font-weight: 500;
+  }
+  .project-item .name{
+    overflow:hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex:1;
+  }
+  .project-item .delete-btn{
+    font-size: 13px;
+    color: #6E7280;
+    background:none;
+    border:none;
+    cursor:pointer;
+    padding: 2px 4px;
+    line-height:1;
+    flex-shrink:0;
+  }
+  .project-item .delete-btn:hover{ color: #E27373; }
+  .project-item.active .delete-btn{ color: rgba(255,255,255,0.6); }
+  .project-item.active .delete-btn:hover{ color:#fff; }
+  .new-project-btn{
+    width:100%;
+    margin: 6px 0 14px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    color: #C9CBD3;
+    background: none;
+    border: 1px dashed var(--line-dark);
+    border-radius: 5px;
+    cursor:pointer;
+  }
+  .new-project-btn:hover{
+    border-color: var(--accent);
+    color:#fff;
+  }
+  .project-empty{
+    font-size: 12px;
+    color: #6E7280;
+    padding: 4px 10px 10px;
+    line-height:1.6;
+  }
 
   .doc-section{
     flex:1;
@@ -413,6 +493,26 @@
     font-weight: 500;
   }
   .msg.user .label{ text-align:right; }
+  .code-block{
+    margin: 10px 0;
+    background: var(--ink);
+    border-radius: 6px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    font-size: 12.5px;
+  }
+  .code-block .code-lang-label{
+    font-size: 10.5px;
+    color: #8E93A0;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .code-block code{
+    color: #E8E5DC;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    white-space: pre;
+  }
   .sources{
     margin-top: 10px;
     display:flex;
@@ -569,14 +669,20 @@
   <aside class="sidebar" id="sidebar">
     <div class="brand">
       <h1>資料チャットAI</h1>
-      <p>xlsx・pptx を読み込んで内容について質問できます</p>
+      <p>xlsx・pptx・プログラムコードを読み込んで内容について質問できます</p>
+    </div>
+
+    <div class="project-section">
+      <h2>プロジェクト</h2>
+      <div id="projectList"></div>
+      <button class="new-project-btn" id="newProjectBtn">+ 新規プロジェクト</button>
     </div>
 
     <div class="upload-zone" id="uploadZone">
       <div class="icon">＋</div>
       <div class="main-text">資料をドロップ、またはクリックして選択</div>
-      <div class="sub-text">.xlsx / .pptx</div>
-      <input type="file" id="fileInput" accept=".xlsx,.pptx" multiple>
+      <div class="sub-text">.xlsx / .pptx / コード(.js .py .html 等)</div>
+      <input type="file" id="fileInput" accept=".xlsx,.pptx,.html,.htm,.css,.scss,.js,.jsx,.mjs,.ts,.tsx,.py,.java,.c,.h,.cpp,.cc,.hpp,.cs,.rb,.go,.php,.swift,.kt,.rs,.sql,.sh,.json,.yaml,.yml,.md,.txt" multiple>
     </div>
     <div class="upload-list" id="uploadList"></div>
 
@@ -618,7 +724,7 @@
       <div class="chat-empty" id="chatEmpty">
         <div class="glyph">?</div>
         <h3>資料について質問してみましょう</h3>
-        <p>「A社の売上推移は?」「企画書の3枚目の要点は?」のように、資料の内容について自然な言葉で聞けます。</p>
+        <p>「A社の売上推移は?」「この処理のコードはどうなってる?」のように、資料やコードの内容について自然な言葉で聞けます。</p>
       </div>
     </div>
 
@@ -646,14 +752,133 @@
   const questionInput = document.getElementById('questionInput');
   const sendBtn = document.getElementById('sendBtn');
   const clearBtn = document.getElementById('clearBtn');
+  const projectList = document.getElementById('projectList');
+  const newProjectBtn = document.getElementById('newProjectBtn');
 
   let documents = [];   // { id, filename, ext }
   let selectedDocId = null; // null = 全資料
+  let projects = [];    // { id, name }
+  let currentProjectId = null;
 
-  // ---------- ページ読み込み時にDBから資料一覧を取得 ----------
-  async function loadDocuments(){
+  // アップロード可能な拡張子(バックエンドのCODE_EXTENSIONSと対応させている)
+  const ALLOWED_EXTENSIONS = [
+    'xlsx', 'pptx',
+    'html', 'htm', 'css', 'scss', 'js', 'jsx', 'mjs', 'ts', 'tsx',
+    'py', 'java', 'c', 'h', 'cpp', 'cc', 'hpp', 'cs',
+    'rb', 'go', 'php', 'swift', 'kt', 'rs', 'sql', 'sh', 'json', 'yaml', 'yml', 'md', 'txt',
+  ];
+  const ALLOWED_EXT_REGEX = new RegExp(`\\.(${ALLOWED_EXTENSIONS.join('|')})$`, 'i');
+
+  // ---------- プロジェクト管理 ----------
+  async function loadProjects(){
     try{
-      const res = await fetch(`${API_BASE}/api/documents`);
+      const res = await fetch(`${API_BASE}/api/projects`);
+      if(!res.ok) throw new Error(`プロジェクト一覧の取得に失敗しました (${res.status})`);
+      const data = await res.json();
+      projects = data.projects;
+      renderProjectList();
+
+      if(projects.length > 0 && !currentProjectId){
+        selectProject(projects[0].id, projects[0].name);
+      }else if(projects.length === 0){
+        updateUploadZoneState();
+      }
+    }catch(err){
+      console.error('プロジェクト一覧の取得に失敗:', err.message);
+    }
+  }
+
+  function renderProjectList(){
+    projectList.innerHTML = '';
+    if(projects.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'project-empty';
+      empty.textContent = 'プロジェクトがありません。下のボタンから作成してください。';
+      projectList.appendChild(empty);
+      return;
+    }
+    projects.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'project-item' + (currentProjectId === p.id ? ' active' : '');
+      item.innerHTML = `
+        <span class="name">${escapeHtml(p.name)}</span>
+        <button class="delete-btn" type="button" title="削除">×</button>
+      `;
+      item.querySelector('.name').addEventListener('click', () => selectProject(p.id, p.name));
+      item.querySelector('.delete-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if(!confirm(`プロジェクト「${p.name}」を削除しますか?(中の資料もすべて削除されます)`)) return;
+        try{
+          const res = await fetch(`${API_BASE}/api/projects/${p.id}`, { method: 'DELETE' });
+          if(!res.ok) throw new Error(`削除に失敗しました (${res.status})`);
+          projects = projects.filter(x => x.id !== p.id);
+          if(currentProjectId === p.id){
+            currentProjectId = null;
+            documents = [];
+            chatLog.innerHTML = '';
+            chatLog.appendChild(chatEmpty);
+            if(projects.length > 0){
+              selectProject(projects[0].id, projects[0].name);
+            }else{
+              renderDocList();
+              updateUploadZoneState();
+            }
+          }
+          renderProjectList();
+        }catch(err){
+          alert(err.message);
+        }
+      });
+      projectList.appendChild(item);
+    });
+  }
+
+  function selectProject(id, name){
+    currentProjectId = id;
+    renderProjectList();
+    updateUploadZoneState();
+    selectedDocId = null;
+    scopeLabel.textContent = '全資料';
+    allDocsItem.classList.add('active');
+    chatLog.innerHTML = '';
+    chatLog.appendChild(chatEmpty);
+    loadDocuments();
+    closeSidebar();
+  }
+
+  function updateUploadZoneState(){
+    uploadZone.classList.toggle('disabled', !currentProjectId);
+  }
+
+  newProjectBtn.addEventListener('click', async () => {
+    const name = prompt('プロジェクト名を入力してください(例: システムA)');
+    if(!name || !name.trim()) return;
+    try{
+      const res = await fetch(`${API_BASE}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      if(!res.ok) throw new Error(`プロジェクトの作成に失敗しました (${res.status})`);
+      const data = await res.json();
+      projects.push(data.project);
+      selectProject(data.project.id, data.project.name);
+    }catch(err){
+      alert(err.message);
+    }
+  });
+
+  loadProjects();
+
+  // ---------- ページ読み込み時/プロジェクト切り替え時にDBから資料一覧を取得 ----------
+  async function loadDocuments(){
+    if(!currentProjectId){
+      documents = [];
+      renderDocList();
+      return;
+    }
+    try{
+      const res = await fetch(`${API_BASE}/api/documents?projectId=${currentProjectId}`);
       if(!res.ok) throw new Error(`一覧の取得に失敗しました (${res.status})`);
       const data = await res.json();
       documents = data.documents.map(d => ({ id: d.id, filename: d.filename, ext: d.file_type }));
@@ -662,7 +887,6 @@
       console.error('資料一覧の取得に失敗:', err.message);
     }
   }
-  loadDocuments();
 
   // ---------- モバイル用サイドバー開閉 ----------
   const sidebar = document.getElementById('sidebar');
@@ -694,12 +918,16 @@
   });
 
   function handleFiles(fileList){
+    if(!currentProjectId){
+      alert('先にプロジェクトを選択(または作成)してください');
+      return;
+    }
     const allFiles = Array.from(fileList);
-    const validFiles = allFiles.filter(f => /\.(xlsx|pptx)$/i.test(f.name));
-    const invalidFiles = allFiles.filter(f => !/\.(xlsx|pptx)$/i.test(f.name));
+    const validFiles = allFiles.filter(f => ALLOWED_EXT_REGEX.test(f.name));
+    const invalidFiles = allFiles.filter(f => !ALLOWED_EXT_REGEX.test(f.name));
 
     if(invalidFiles.length > 0){
-      alert(`対応形式は .xlsx と .pptx のみです(未対応: ${invalidFiles.map(f => f.name).join(', ')})`);
+      alert(`対応していない形式です(未対応: ${invalidFiles.map(f => f.name).join(', ')})`);
     }
     if(validFiles.length === 0) return;
 
@@ -731,6 +959,7 @@
 
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('projectId', currentProjectId);
 
     try{
       barFillEl.style.width = '55%';
@@ -840,7 +1069,7 @@
       bubble.appendChild(badgeEl);
       bubble.appendChild(document.createElement('br'));
     }
-    bubble.appendChild(document.createTextNode(text));
+    renderMessageContent(bubble, text);
     msg.appendChild(bubble);
 
     chatLog.appendChild(msg);
@@ -848,9 +1077,46 @@
     return msg;
   }
 
+  // ```言語名 ... ``` のコードブロックを見つけて、等幅フォントの枠で表示する。
+  // それ以外の部分は通常のテキストとしてそのまま表示する(pre-wrapなので改行は保持される)。
+  function renderMessageContent(container, text){
+    const codeBlockPattern = /```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g;
+    let lastIndex = 0;
+    let match;
+    while((match = codeBlockPattern.exec(text)) !== null){
+      if(match.index > lastIndex){
+        container.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+      }
+      const lang = match[1];
+      const code = match[2].replace(/\n$/, '');
+
+      const pre = document.createElement('pre');
+      pre.className = 'code-block';
+      if(lang){
+        const langLabel = document.createElement('div');
+        langLabel.className = 'code-lang-label';
+        langLabel.textContent = lang;
+        pre.appendChild(langLabel);
+      }
+      const codeEl = document.createElement('code');
+      codeEl.textContent = code;
+      pre.appendChild(codeEl);
+      container.appendChild(pre);
+
+      lastIndex = codeBlockPattern.lastIndex;
+    }
+    if(lastIndex < text.length){
+      container.appendChild(document.createTextNode(text.slice(lastIndex)));
+    }
+  }
+
   async function sendQuestion(){
     const question = questionInput.value.trim();
     if(!question) return;
+    if(!currentProjectId){
+      alert('先にプロジェクトを選択(または作成)してください');
+      return;
+    }
 
     appendMessage('user', question);
     questionInput.value = '';
@@ -864,7 +1130,7 @@
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId: selectedDocId, question }),
+        body: JSON.stringify({ projectId: currentProjectId, documentId: selectedDocId, question }),
       });
       if(!res.ok) throw new Error(`回答の取得に失敗しました (${res.status})`);
       const data = await res.json();
@@ -906,6 +1172,10 @@
       alert('生成したい内容を入力してください');
       return;
     }
+    if(!currentProjectId){
+      alert('先にプロジェクトを選択(または作成)してください');
+      return;
+    }
 
     generateSubmitBtn.disabled = true;
     const formatLabel = selectedFormat === 'xlsx' ? 'Excel' : 'PowerPoint';
@@ -917,6 +1187,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          projectId: currentProjectId,
           documentId: selectedDocId,
           format: selectedFormat,
           instruction,
